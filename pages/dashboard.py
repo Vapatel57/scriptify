@@ -1,13 +1,8 @@
 from firebase_config import get_user_scripts
-<<<<<<< HEAD
 from email_utils import generate_otp, send_otp_email
-=======
->>>>>>> d491582514ae3db85f1d22dddcf58451fdde4079
 import streamlit as st
 
 st.title("📜 Your Scripts Dashboard")
-
-<<<<<<< HEAD
 # ------------------ LOGIN / SESSION CHECK ------------------
 
 if "user_email" not in st.session_state:
@@ -60,7 +55,6 @@ else:
     for script in scripts:
         st.write(f"### {script['topic']} ({script['timestamp']})")
         st.code(script['script'])
-=======
 user_email = st.text_input("Enter your email")
 if user_email:
     scripts = get_user_scripts(user_email)
@@ -71,4 +65,3 @@ if user_email:
         for script in scripts:
             st.write(f"### {script['topic']} ({script['timestamp']})")
             st.code(script['script'])
->>>>>>> d491582514ae3db85f1d22dddcf58451fdde4079
