@@ -3,3 +3,4 @@ openai
 google-cloud-firestore
 firebase-admin
 fpdf
+python-docx
