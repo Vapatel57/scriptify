@@ -1,12 +1,13 @@
-from firebase_config import get_user_scripts
+from firebase_config import get_user_scripts, upgrade_to_pro, is_user_pro
 from email_utils import generate_otp, send_otp_email
 import streamlit as st
 
+st.set_page_config(page_title="📜 Scriptify AI | Dashboard", layout="centered")
 st.title("📜 Your Scripts Dashboard")
+
 # ------------------ LOGIN / SESSION CHECK ------------------
 
 if "user_email" not in st.session_state:
-    # If not logged in, ask for email and OTP
     if "otp_verified" not in st.session_state:
         st.session_state["otp_verified"] = False
 
@@ -25,43 +26,57 @@ if "user_email" not in st.session_state:
         if st.button("Verify OTP"):
             if entered_otp == st.session_state.get("otp"):
                 st.success("✅ OTP Verified. Displaying your scripts.")
-                st.session_state["user_email"] = st.session_state["pending_email"]
+                user_email = st.session_state["pending_email"]
+                st.session_state["user_email"] = user_email
                 st.session_state["otp_verified"] = True
+                st.session_state["pro_user"] = is_user_pro(user_email)  # Fetch Pro status
                 st.session_state.pop("otp", None)
                 st.session_state.pop("otp_sent", None)
                 st.session_state.pop("pending_email", None)
+                if is_user_pro(st.session_state["user_email"]):
+                    st.session_state["pro_user"] = True
+                    st.success("✅ OTP Verified. You're a Pro user!")
+                else:
+                    st.session_state["pro_user"] = False
+                    st.success("✅ OTP Verified. Welcome!")
             else:
                 st.error("❌ Incorrect OTP. Please try again.")
-
+            if is_user_pro(st.session_state["user_email"]):
+                st.session_state["pro_user"] = True
+                st.success("✅ OTP Verified. You're a Pro user!")
+            else:
+                st.session_state["pro_user"] = False
+                st.success("✅ OTP Verified. Welcome!")
     if "user_email" not in st.session_state:
-        st.stop()  # Stop until user is logged in
+        st.stop()
 
 # ------------------ LOGOUT ------------------
 
-st.sidebar.write(f"Logged in as: {st.session_state['user_email']}")
+st.sidebar.write(f"👤 Logged in as: {st.session_state['user_email']}")
 if st.sidebar.button("🚪 Logout"):
     st.session_state.clear()
-    st.success("Logged out successfully. Refresh the page to login again.")
+    st.success("✅ Logged out successfully. Refresh to log in again.")
     st.stop()
 
+# ------------------ UPGRADE TO PRO ------------------
+pro_status = is_user_pro(st.session_state["user_email"])
+st.session_state["pro_user"] = pro_status
+
+if pro_status:
+    st.markdown("✅ **Pro Plan Activated** — Enjoy unlimited access!")
+else:
+    if st.button("✨ Upgrade to Pro"):
+        upgrade_to_pro(st.session_state["user_email"])
+        st.session_state["pro_user"] = True
+        st.success("🎉 You're now a Pro user with unlimited access!")
 # ------------------ SHOW SCRIPTS ------------------
 
-# User is logged in → fetch scripts
 scripts = get_user_scripts(st.session_state["user_email"])
 
 if not scripts:
-    st.warning("No scripts found.")
+    st.warning("📭 No scripts found yet.")
 else:
+    st.subheader("📚 Your Saved Scripts")
     for script in scripts:
-        st.write(f"### {script['topic']} ({script['timestamp']})")
+        st.markdown(f"### 📝 {script['topic']} — *{script['timestamp']}*")
         st.code(script['script'])
-user_email = st.text_input("Enter your email")
-if user_email:
-    scripts = get_user_scripts(user_email)
-    
-    if not scripts:
-        st.warning("No scripts found.")
-    else:
-        for script in scripts:
-            st.write(f"### {script['topic']} ({script['timestamp']})")
-            st.code(script['script'])
