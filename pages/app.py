@@ -3,15 +3,15 @@ from firebase_config import (
     check_and_increment_usage,
     save_script,
     upgrade_to_pro,
-    is_user_pro
+    is_user_pro,
+    db
 )
 from email_utils import generate_otp, send_otp_email
 import requests
 from fpdf import FPDF
 from docx import Document
 import io
-from firebase_config import db
-
+from firebase_config import save_feedback
 # CONFIG
 st.set_page_config(page_title="🎬 Scriptify AI", layout="centered")
 
@@ -36,7 +36,7 @@ def query_together(prompt):
     except Exception as e:
         return f"⚠️ Error contacting Together API: {e}"
 
-# ----------- Login -----------
+# ------------- LOGIN -------------
 st.title("🎬 Scriptify AI")
 
 if "user_email" not in st.session_state:
@@ -60,33 +60,32 @@ if "user_email" not in st.session_state:
 
                 if is_user_pro(st.session_state["user_email"]):
                     st.session_state["is_pro"] = True
-                    st.success("✅ OTP Verified. Welcome, Pro user!")
+                    st.success("OTP Verified. Welcome, Pro user!")
                 else:
                     st.session_state["is_pro"] = False
-                    st.success("✅ OTP Verified. Welcome!")
+                    st.success("OTP Verified. Welcome!")
             else:
-                st.error("❌ Invalid OTP.")
+                st.error("Invalid OTP.")
                 st.stop()
     if "user_email" not in st.session_state:
         st.stop()
 
-# ----------- Sidebar -----------
-st.sidebar.success(f"👤 Logged in as: {st.session_state['user_email']}")
+# ------------- SIDEBAR -------------
+st.sidebar.success(f"Logged in as: {st.session_state['user_email']}")
 
-if st.sidebar.button("🚪 Logout"):
+if st.sidebar.button("Logout"):
     st.session_state.clear()
     st.success("Logged out. Refresh to login again.")
     st.stop()
 
-# ✅ Show Upgrade or Pro status
 if st.session_state.get("is_pro"):
     st.sidebar.markdown("💎 **Pro Plan Activated**")
 else:
     if st.sidebar.button("💎 Upgrade to Pro"):
         upgrade_to_pro(st.session_state["user_email"])
         st.session_state["is_pro"] = True
-        st.success("🚀 Pro activated! You now have access to premium features.")
-        
+        st.success("Pro activated! You now have access to premium features.")
+
 user_doc = db.collection("users").document(st.session_state["user_email"]).get()
 if user_doc.exists:
     data = user_doc.to_dict()
@@ -94,29 +93,28 @@ if user_doc.exists:
     if expiry:
         st.sidebar.markdown(f"🗓️ **Pro valid until:** `{expiry}`")
 
-# ----------- Usage Check for Free Users -----------
+# ------------- Usage Limit (Free Users) -------------
 if not st.session_state.get("is_pro"):
     _, remaining = check_and_increment_usage(st.session_state["user_email"], increment=False)
-    st.info(f"🔢 Remaining scripts today: **{remaining}/20**")
+    st.info(f"Remaining scripts today: **{remaining}/20**")
 
-# ----------- Input Fields -----------
-st.header("✍️ Generate Your Script")
-topic = st.text_input("🎯 Video Topic", placeholder="e.g., AI tools for students")
-platform = st.selectbox("🎥 Platform", ["YouTube", "Instagram Reels", "TikTok"])
+# ------------- INPUT FORM -------------
+st.header("Generate Your Script")
+topic = st.text_input("Enter your Video Topic", placeholder="e.g., AI tools for students")
+platform = st.selectbox("Select your Platform", ["YouTube", "Instagram Reels"])
 
 tone_options = ["Motivational", "Funny", "Professional"]
 if st.session_state.get("is_pro"):
     tone_options += ["Casual", "Inspirational", "Bold"]
-tone = st.selectbox("🎤 Tone", tone_options)
+tone = st.selectbox("Selete the Tone of the script", tone_options)
 
-audience = st.text_input("👥 Target Audience", placeholder="e.g., creators, students")
+audience = st.text_input("Enter your Target Audience", placeholder="e.g., creators, students")
 
-# Store generated script in session state
 if "script" not in st.session_state:
     st.session_state["script"] = None
 
-# ----------- Generate Button -----------
-if st.button("🧠 Generate Script"):
+# ------------- GENERATE SCRIPT -------------
+if st.button("Generate Script"):
     if not st.session_state["is_pro"]:
         allowed, remaining = check_and_increment_usage(st.session_state["user_email"])
         if not allowed:
@@ -138,15 +136,15 @@ Make it engaging, clear, and appropriate for the platform.
         script = query_together(prompt)
         st.session_state["script"] = script
         save_script(st.session_state["user_email"], topic, platform, tone, audience, script)
-        st.success("✅ Script saved!")
+        st.success("Your Script is saved!")
 
-# ----------- Display Script and Export Options -----------
+# ------------- DISPLAY & EXPORT -------------
 if st.session_state["script"]:
-    st.subheader("📜 Your Script")
+    st.subheader("Your Script")
     st.write(st.session_state["script"])
 
     if st.session_state.get("is_pro"):
-        # PDF Export
+        # PDF
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
@@ -154,9 +152,9 @@ if st.session_state["script"]:
             pdf.multi_cell(0, 10, line.encode("latin-1", "ignore").decode("latin-1"))
         pdf_bytes = io.BytesIO(pdf.output(dest='S').encode('latin-1'))
         pdf_bytes.seek(0)
-        st.download_button("📥 Download PDF", data=pdf_bytes, file_name="script.pdf", mime="application/pdf")
+        st.download_button("Download PDF", data=pdf_bytes, file_name="script.pdf", mime="application/pdf")
 
-        # DOCX Export
+        # DOCX
         doc = Document()
         doc.add_heading("Generated Script", 0)
         for line in st.session_state["script"].split("\n"):
@@ -164,24 +162,35 @@ if st.session_state["script"]:
         docx_bytes = io.BytesIO()
         doc.save(docx_bytes)
         docx_bytes.seek(0)
-        st.download_button("📝 Download DOCX", data=docx_bytes, file_name="script.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        st.download_button("Download DOCX", data=docx_bytes, file_name="script.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
-        # TXT Export
+        # TXT
         txt_bytes = io.BytesIO(st.session_state["script"].encode('utf-8'))
-        st.download_button("📄 Download TXT", data=txt_bytes, file_name="script.txt", mime="text/plain")
+        st.download_button("Download TXT", data=txt_bytes, file_name="script.txt", mime="text/plain")
 
-        # Script Refinement
-        st.subheader("🛠️ AI Script Refinement")
+        # Refinement
+        st.subheader("AI Script Refinement")
         refine_prompt = st.text_area("Suggest edits or improvements", placeholder="Make it more engaging...")
-        if st.button("🔄 Refine Script"):
+
+        if st.button("Refine Script"):
             with st.spinner("Refining..."):
                 refined = query_together(f"Improve this script:\n{st.session_state['script']}\n\nSuggestions: {refine_prompt}")
                 st.session_state["script"] = refined
-                st.success("✅ Refined Script")
+                st.success("Refined Script")
                 st.write(refined)
 
-# ----------- Priority Support (Pro) -----------
-if st.session_state.get("is_pro"):
-    st.sidebar.markdown("📞 Need help?")
-    if st.sidebar.button("🧑‍💻 Contact Support"):
-        st.info("📧 Email us at support@scriptifyai.com")
+                # Save refined version to Firestore
+                save_script(st.session_state["user_email"], topic + " (Refined)", platform, tone, audience, refined)
+
+# ------------- SUPPORT -------------
+st.sidebar.markdown("💬 Have Feedback?")
+with st.sidebar.form("feedback_form"):
+    feedback = st.text_area("Tell us what you think:")
+    submit = st.form_submit_button("📩 Submit")
+    if submit and feedback.strip():
+        save_feedback(st.session_state.get("user_email", "Anonymous"), feedback.strip())
+        st.success("✅ Thanks for your feedback!")
+    elif submit:
+        st.warning("⚠️ Please write something before submitting.")
+
+
