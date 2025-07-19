@@ -6,7 +6,7 @@ st.title("🤖 Welcome to Scriptify AI!")
 
 st.write("""
 Navigate using the sidebar:
-- 🎬 Generate a Script
-- 📜 Dashboard (View your scripts)
-- 🚀 Upgrade to Pro
+- Generate a Script
+- Dashboard (View your scripts)
+- Upgrade to Pro
 """)
